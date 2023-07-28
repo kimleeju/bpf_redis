@@ -1356,16 +1356,15 @@ void processInputBuffer(client *c) {
 }
 
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
+
 #ifdef USE_BPF
-#if 1
     int key = 0; // We used 0 as the key in the BPF program
     int packet_size;
     if (bpf_map_lookup_elem(map_fd, &key, &packet_size)) {
         perror("Could not read BPF map");
         exit(EXIT_FAILURE);
     }   
-    printf("Current packet size: %d bytes\n", packet_size); // Display the current packet size
-#endif
+//    printf("Current packet size: %d bytes\n", packet_size); // Display the current packet size
 #endif
 
     client *c = (client*) privdata;
@@ -1391,9 +1390,27 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
 
     qblen = sdslen(c->querybuf);
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
+#ifdef USE_BPF
+    if (packet_size > 100){
+//        c->querybuf = (char*)nvm_malloc(readlen);
+        c->querybuf = sdsMakeRoomForNvm(c->querybuf, readlen);
+        
+        //nread = pmem_memcpy_persist(c->querybuf,fd,readlen);
+        //nread = pmem_memcpy_persist(nvm_malloc(readlen),fd,readlen);
+        //printf("before = %s\n",c->querybuf);
+        nread = read(fd,c->querybuf+qblen,readlen);
+        //printf("%s\n",c->querybuf);
+    }
+    else{
+        c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
+        nread = read(fd, c->querybuf+qblen, readlen);
+    }
+#else
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
     nread = read(fd, c->querybuf+qblen, readlen);
-    printf("%s\n",c->querybuf);
+//    printf("%s\n",c->querybuf);
+#endif
+
     if (nread == -1) {
         if (errno == EAGAIN) {
             return;
@@ -1428,7 +1445,6 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         freeClient(c);
         return;
     }
-
     /* Time to process the buffer. If the client is a master we need to
      * compute the difference between the applied offset before and after
      * processing the buffer, to understand how much of the replication stream

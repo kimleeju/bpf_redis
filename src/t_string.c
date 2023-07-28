@@ -92,6 +92,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     }
 
 #ifdef USE_NVM
+#ifndef USE_BPF
     if(val->encoding == OBJ_ENCODING_RAW) {
         val->ptr = sdsmvtonvm(val->ptr);
         size_t header_size = sdsheadersize(val->ptr);
@@ -99,6 +100,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
         if(total_size >= server.sdsmv_threshold && !is_nvm_addr(val->ptr))
             val->need_mv_to_nvm = 1;
     }
+#endif
 #endif
     setKey(c->db,key,val);
     server.dirty++;
