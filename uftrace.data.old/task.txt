@@ -1,6 +1,0 @@
-SESS timestamp=7796.680660659 pid=42389 sid=0bcd06999e02393c exename="/home/ljkim/bpf/bpf_redis/bpf_redis/src/redis-server"
-TASK timestamp=7796.680785425 tid=42389 pid=42389
-TASK timestamp=7796.709466909 tid=42414 pid=42389
-TASK timestamp=7796.709601625 tid=42415 pid=42389
-TASK timestamp=7796.709699192 tid=42416 pid=42389
-TASK timestamp=7796.709858505 tid=42417 pid=42389
