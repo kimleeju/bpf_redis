@@ -1356,7 +1356,7 @@ void processInputBuffer(client *c) {
 }
 
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
-
+#if 0
 #ifdef USE_BPF
     int key = 0; // We used 0 as the key in the BPF program
     int packet_size;
@@ -1366,7 +1366,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     }   
 //    printf("Current packet size: %d bytes\n", packet_size); // Display the current packet size
 #endif
-
+#endif
     client *c = (client*) privdata;
     int nread, readlen;
     size_t qblen;
@@ -1390,27 +1390,36 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
 
     qblen = sdslen(c->querybuf);
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
+#if 0
 #ifdef USE_BPF
     if (packet_size > 100){
-//        c->querybuf = (char*)nvm_malloc(readlen);
-        c->querybuf = sdsMakeRoomForNvm(c->querybuf, readlen);
-        
+        //printf("qblen = %d\n",qblen);
+        //c->querybuf = sdsMakeRoomForNvm(c->querybuf, readlen);
+        c->querybuf = sdsMakeRoomFor(c->querybuf,readlen); 
         //nread = pmem_memcpy_persist(c->querybuf,fd,readlen);
         //nread = pmem_memcpy_persist(nvm_malloc(readlen),fd,readlen);
         //printf("before = %s\n",c->querybuf);
         nread = read(fd,c->querybuf+qblen,readlen);
         //printf("%s\n",c->querybuf);
+        //printf("%s\n",c->querybuf+qblen);
+        //pmem_drain();
+        //pmem_flush(c->querybuf, nread);
+        //nread = pmem_memcpy_persist(c->querybuf+qblen,readlen);
     }
     else{
         c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
         nread = read(fd, c->querybuf+qblen, readlen);
+        //printf("%s\n",c->querybuf);
     }
 #else
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
     nread = read(fd, c->querybuf+qblen, readlen);
-//    printf("%s\n",c->querybuf);
+#endif
 #endif
 
+    c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
+    nread = read(fd, c->querybuf+qblen, readlen);
+    printf("%s\n",c->querybuf);
     if (nread == -1) {
         if (errno == EAGAIN) {
             return;

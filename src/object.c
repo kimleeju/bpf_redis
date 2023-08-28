@@ -85,7 +85,24 @@ robj *makeObjectShared(robj *o) {
 /* Create a string object with encoding OBJ_ENCODING_RAW, that is a plain
  * string object where o->ptr points to a proper sds string. */
 robj *createRawStringObject(const char *ptr, size_t len) {
+#ifdef USE_BPF
+#if 1
+    int key = 0; // We used 0 as the key in the BPF program
+    int packet_size;
+
+    if (bpf_map_lookup_elem(map_fd, &key, &packet_size)) {
+        perror("Could not read BPF map");
+        exit(EXIT_FAILURE);
+    }
+#endif
+    //printf("Current packet size: %d bytes\n", packet_size); // Display the current packet size
+    if (packet_size > 100)
+        return createObject(OBJ_STRING, sdsnewlennvm(ptr,len));
+    else
+        return createObject(OBJ_STRING, sdsnewlen(ptr,len));
+#else
     return createObject(OBJ_STRING, sdsnewlen(ptr,len));
+#endif
 }
 
 /* Create a string object with encoding OBJ_ENCODING_EMBSTR, that is

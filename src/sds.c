@@ -157,7 +157,6 @@ sds sdsnewlennvm(const void *init, size_t initlen) {
     if (type == SDS_TYPE_5 && initlen == 0) type = SDS_TYPE_8;
     int hdrlen = sdsHdrSize(type);
     unsigned char *fp; /* flags pointer. */
-
     sh = s_malloc_nvm(hdrlen+initlen+1);
     if (sh == NULL) return NULL;
 #ifdef FAST_SDSFREE

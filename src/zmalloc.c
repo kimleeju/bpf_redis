@@ -136,7 +136,6 @@ void *s_zmalloc(size_t size) {
         if(ptr) return ptr;
     }
 #endif
-
     void *ptr = malloc(size+PREFIX_SIZE);
 
     if (!ptr) zmalloc_oom_handler(size);

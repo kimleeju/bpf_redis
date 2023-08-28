@@ -90,7 +90,6 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
         addReply(c, abort_reply ? abort_reply : shared.nullbulk);
         return;
     }
-
 #ifdef USE_NVM
 #ifndef USE_BPF
     if(val->encoding == OBJ_ENCODING_RAW) {
@@ -102,6 +101,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     }
 #endif
 #endif
+    //printf("val = %d\n",is_nvm_addr(val->ptr));
     setKey(c->db,key,val);
     server.dirty++;
     if (expire) setExpire(c,c->db,key,mstime()+milliseconds);
