@@ -94,6 +94,16 @@ robj *createRawStringObject(const char *ptr, size_t len) {
         perror("Could not read BPF map");
         exit(EXIT_FAILURE);
     }
+    int off_key = 1; // We used 0 as the key in the BPF program
+    int offset;
+    printf("size: %llu , offset: %llu\n", packet_size, offset);
+#if 1
+    if (bpf_map_lookup_elem(map_fd, &off_key, &offset)) {
+        perror("Could not read BPF map");
+        exit(EXIT_FAILURE);
+    }
+#endif
+    printf("size: %llu , offset: %llu\n", packet_size, offset);
 #endif
     //printf("Current packet size: %d bytes\n", packet_size); // Display the current packet size
     if (packet_size > 100)
