@@ -82,6 +82,9 @@ const char *file;
 struct bpf_object *obj;
 int prog_fd, map_fd;
 struct bpf_map *map;
+#define SIZE_KEY 0
+#define OFF_KEY 1
+
 #endif
 
 #endif

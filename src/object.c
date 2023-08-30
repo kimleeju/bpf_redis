@@ -85,6 +85,7 @@ robj *makeObjectShared(robj *o) {
 /* Create a string object with encoding OBJ_ENCODING_RAW, that is a plain
  * string object where o->ptr points to a proper sds string. */
 robj *createRawStringObject(const char *ptr, size_t len) {
+#if 0
 #ifdef USE_BPF
 #if 1
     int key = 0; // We used 0 as the key in the BPF program
@@ -113,6 +114,8 @@ robj *createRawStringObject(const char *ptr, size_t len) {
 #else
     return createObject(OBJ_STRING, sdsnewlen(ptr,len));
 #endif
+#endif
+    return createObject(OBJ_STRING, sdsnewlen(ptr,len));
 }
 
 /* Create a string object with encoding OBJ_ENCODING_EMBSTR, that is

@@ -33,7 +33,7 @@
 #include <sys/uio.h>
 #include <math.h>
 #include <ctype.h>
-
+#include "sdsalloc.h"
 static void setProtocolError(const char *errstr, client *c, int pos);
 
 /* Return the size consumed from the allocator, for the specified SDS string,
@@ -1356,17 +1356,7 @@ void processInputBuffer(client *c) {
 }
 
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
-#if 0
-#ifdef USE_BPF
-    int key = 0; // We used 0 as the key in the BPF program
-    int packet_size;
-    if (bpf_map_lookup_elem(map_fd, &key, &packet_size)) {
-        perror("Could not read BPF map");
-        exit(EXIT_FAILURE);
-    }   
-//    printf("Current packet size: %d bytes\n", packet_size); // Display the current packet size
-#endif
-#endif
+
     client *c = (client*) privdata;
     int nread, readlen;
     size_t qblen;
@@ -1390,36 +1380,63 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
 
     qblen = sdslen(c->querybuf);
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
-#if 0
+
 #ifdef USE_BPF
-    if (packet_size > 100){
-        //printf("qblen = %d\n",qblen);
-        //c->querybuf = sdsMakeRoomForNvm(c->querybuf, readlen);
-        c->querybuf = sdsMakeRoomFor(c->querybuf,readlen); 
-        //nread = pmem_memcpy_persist(c->querybuf,fd,readlen);
-        //nread = pmem_memcpy_persist(nvm_malloc(readlen),fd,readlen);
-        //printf("before = %s\n",c->querybuf);
-        nread = read(fd,c->querybuf+qblen,readlen);
-        //printf("%s\n",c->querybuf);
-        //printf("%s\n",c->querybuf+qblen);
-        //pmem_drain();
-        //pmem_flush(c->querybuf, nread);
-        //nread = pmem_memcpy_persist(c->querybuf+qblen,readlen);
+    int size_key = SIZE_KEY; // We used 0 as the key in the BPF program
+    int packet_size;
+    if (bpf_map_lookup_elem(map_fd, &size_key, &packet_size)) {
+        perror("Could not read BPF map");
+        exit(EXIT_FAILURE);
+    } 
+    size_t value_size = packet_size;
+    printf("=================\n");
+    printf("Value size: %d bytes\n", value_size); // Display the current packet size
+
+    if (value_size > server.sdsmv_threshold){
+        int off_key = OFF_KEY;
+        int value_offset;
+
+        if (bpf_map_lookup_elem(map_fd, &off_key, &value_offset)) {
+            perror("Could not read BPF map");
+            exit(EXIT_FAILURE);
+        }   
+        printf("Value offset: %d bytes\n", value_offset); // Display the current packet size
+            
+        c->querybuf = sdsMakeRoomFor(c->querybuf,value_offset);
+        nread = read(fd,c->querybuf+qblen,value_offset);
+
+        if (nread > 0) {
+            c->querybuf[qblen+nread] = '\0';  // Add null terminator
+        }
+        
+        if (nread == 0) { 
+            serverLog(LL_VERBOSE, "Client closed connection");
+            freeClient(c);
+            return;
+        }
+        
+        void* nvm_buf = s_malloc_nvm(value_size + 1); 
+        read(fd,nvm_buf,value_size);
+        printf("Value = %s\n",nvm_buf);
+
+        void* tmp = s_malloc(sizeof(char)*2); // \r\n제거 용도
+        read(fd,tmp,2);
+
+        
     }
     else{
         c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
         nread = read(fd, c->querybuf+qblen, readlen);
-        //printf("%s\n",c->querybuf);
     }
 #else
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
     nread = read(fd, c->querybuf+qblen, readlen);
 #endif
-#endif
 
+#ifndef USE_BPF
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
     nread = read(fd, c->querybuf+qblen, readlen);
-    printf("%s\n",c->querybuf);
+#endif
     if (nread == -1) {
         if (errno == EAGAIN) {
             return;
