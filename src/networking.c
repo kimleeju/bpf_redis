@@ -34,6 +34,7 @@
 #include <math.h>
 #include <ctype.h>
 #include "sdsalloc.h"
+#include "sds.h"
 static void setProtocolError(const char *errstr, client *c, int pos);
 
 /* Return the size consumed from the allocator, for the specified SDS string,
@@ -540,7 +541,6 @@ void addReplyBulkLen(client *c, robj *obj) {
             len++;
         }
     }
-
     if (len < OBJ_SHARED_BULKHDR_LEN)
         addReply(c,shared.bulkhdr[len]);
     else
@@ -1192,7 +1192,21 @@ int processMultibulkBuffer(client *c) {
         }
 
         c->multibulklen = ll;
+#ifdef USE_BPF
+        if (value_size > server.sdsmv_threshold)
+            (c->multibulklen)--;
+#if 0
+        if (value_size > server.sdsmv_threshold){
+            void* tmp1 = "*3\r\n$3\r\nset";
+            void* tmp2 = "*3\r\n$3\r\nSET";
 
+            if(!strncmp(c->querybuf, tmp1, strlen(tmp1)) || !strncmp(c->querybuf, tmp2, strlen(tmp2))){
+                (c->multibulklen)--;
+            }
+        }
+#endif
+#endif
+        
         /* Setup argv array on client structure */
         if (c->argv) zfree(c->argv);
         c->argv = zmalloc(sizeof(robj*)*c->multibulklen);
@@ -1281,6 +1295,15 @@ int processMultibulkBuffer(client *c) {
     }
 
     /* Trim to pos */
+
+#ifdef USE_BPF
+    if (value_size > server.sdsmv_threshold){
+//        if (!strcmp(c->argv[0]->ptr,"set") || !strcmp(c->argv[0]->ptr,"SET")){
+        pos = sdslen(c->querybuf);
+//        }
+    }
+
+#endif
     if (pos) sdsrange(c->querybuf,pos,-1);
 
     /* We're done when c->multibulk == 0 */
@@ -1327,7 +1350,6 @@ void processInputBuffer(client *c) {
         } else {
             serverPanic("Unknown request type");
         }
-
         /* Multibulk processing could see a <= 0 length. */
         if (c->argc == 0) {
             resetClient(c);
@@ -1388,25 +1410,25 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         perror("Could not read BPF map");
         exit(EXIT_FAILURE);
     } 
-    size_t value_size = packet_size;
-    printf("=================\n");
-    printf("Value size: %d bytes\n", value_size); // Display the current packet size
+    value_size = packet_size;
+//    printf("=================\n\n\n\n");
+//    printf("Value size: %d bytes\n", value_size); // Display the current packet size
 
     if (value_size > server.sdsmv_threshold){
-        int off_key = OFF_KEY;
+        int off_key = VALUE_OFF_KEY;
         int value_offset;
 
         if (bpf_map_lookup_elem(map_fd, &off_key, &value_offset)) {
             perror("Could not read BPF map");
             exit(EXIT_FAILURE);
         }   
-        printf("Value offset: %d bytes\n", value_offset); // Display the current packet size
+//        printf("Value offset: %d bytes\n", value_offset); // Display the current packet size
             
         c->querybuf = sdsMakeRoomFor(c->querybuf,value_offset);
         nread = read(fd,c->querybuf+qblen,value_offset);
-
+        
         if (nread > 0) {
-            c->querybuf[qblen+nread] = '\0';  // Add null terminator
+//            c->querybuf[qblen+nread] = '\0';  // Add null terminator
         }
         
         if (nread == 0) { 
@@ -1414,14 +1436,10 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
             freeClient(c);
             return;
         }
-        
-        void* nvm_buf = s_malloc_nvm(value_size + 1); 
+        nvm_buf = sdsnewlenbpf(value_size);
         read(fd,nvm_buf,value_size);
-        printf("Value = %s\n",nvm_buf);
-
-        void* tmp = s_malloc(sizeof(char)*2); // \r\n제거 용도
+        void *tmp = s_malloc(sizeof(char)*2); // \r\n제거 용도
         read(fd,tmp,2);
-
         
     }
     else{

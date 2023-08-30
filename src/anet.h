@@ -82,8 +82,10 @@ const char *file;
 struct bpf_object *obj;
 int prog_fd, map_fd;
 struct bpf_map *map;
+size_t value_size;
+char* nvm_buf;
 #define SIZE_KEY 0
-#define OFF_KEY 1
+#define VALUE_OFF_KEY 1
 
 #endif
 

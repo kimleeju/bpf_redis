@@ -272,6 +272,8 @@ sds sdsjoinsds(sds *argv, int argc, const char *sep, size_t seplen);
 sds sdsMakeRoomFor(sds s, size_t addlen);
 #ifdef USE_BPF
 sds sdsMakeRoomForNvm(sds s, size_t addlen);
+
+sds sdsnewlenbpf(size_t initlen);
 #endif
 void sdsIncrLen(sds s, int incr);
 sds sdsRemoveFreeSpace(sds s);

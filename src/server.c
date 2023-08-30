@@ -2450,6 +2450,24 @@ int processCommand(client *c) {
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
     c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
+#ifdef USE_BPF
+    if (value_size < server.sdsmv_threshold){
+        if (!c->cmd) {
+            flagTransaction(c);
+            addReplyErrorFormat(c,"unknown command '%s'",
+                (char*)c->argv[0]->ptr);
+            return C_OK;
+        } else if ((c->cmd->arity > 0 && c->cmd->arity != c->argc) ||
+                   (c->argc < -c->cmd->arity)) {
+            flagTransaction(c);
+            addReplyErrorFormat(c,"wrong number of arguments for '%s' command",
+                c->cmd->name);
+            return C_OK;
+        }
+    }
+#endif
+
+#ifndef USE_BPF
     if (!c->cmd) {
         flagTransaction(c);
         addReplyErrorFormat(c,"unknown command '%s'",
@@ -2462,7 +2480,7 @@ int processCommand(client *c) {
             c->cmd->name);
         return C_OK;
     }
-
+#endif
     /* Check if the user is authenticated */
     if (server.requirepass && !c->authenticated && c->cmd->proc != authCommand)
     {

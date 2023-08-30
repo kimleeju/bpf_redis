@@ -30,7 +30,6 @@
 
 #include "server.h"
 #include <math.h> /* isnan(), isinf() */
-
 #ifdef USE_NVM
 #include "nvm.h"
 #endif
@@ -101,9 +100,9 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     }
 #endif
 #endif
-    //printf("val = %d\n",is_nvm_addr(val->ptr));
     setKey(c->db,key,val);
     server.dirty++;
+    
     if (expire) setExpire(c,c->db,key,mstime()+milliseconds);
     notifyKeyspaceEvent(NOTIFY_STRING,"set",key,c->db->id);
     if (expire) notifyKeyspaceEvent(NOTIFY_GENERIC,
@@ -117,7 +116,6 @@ void setCommand(client *c) {
     robj *expire = NULL;
     int unit = UNIT_SECONDS;
     int flags = OBJ_SET_NO_FLAGS;
-
     for (j = 3; j < c->argc; j++) {
         char *a = c->argv[j]->ptr;
         robj *next = (j == c->argc-1) ? NULL : c->argv[j+1];
@@ -153,9 +151,23 @@ void setCommand(client *c) {
             return;
         }
     }
-
+#ifdef USE_BPF
+    if (value_size < server.sdsmv_threshold){
+        c->argv[2] = tryObjectEncoding(c->argv[2]);
+        setGenericCommand(c,flags,c->argv[1],c->argv[2],expire,unit,NULL,NULL);
+    }
+    else{
+        robj* nvm_val = createObject(OBJ_STRING, nvm_buf);
+        //robj* nvm_val = createObject(OBJ_STRING, sdsnewlennvm(nvm_buf,strlen(nvm_buf)));
+        //nvm_val = tryObjectEncoding(nvm_val);
+        setGenericCommand(c,flags,c->argv[1],nvm_val,expire,unit,NULL,NULL);
+    }
+#else
     c->argv[2] = tryObjectEncoding(c->argv[2]);
     setGenericCommand(c,flags,c->argv[1],c->argv[2],expire,unit,NULL,NULL);
+#endif
+
+    robj *o = lookupKeyRead(c->db, c->argv[1]);
 }
 
 void setnxCommand(client *c) {
@@ -175,10 +187,9 @@ void psetexCommand(client *c) {
 
 int getGenericCommand(client *c) {
     robj *o;
-
-    if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.nullbulk)) == NULL)
+    if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.nullbulk)) == NULL){
         return C_OK;
-
+    }
     if (o->type != OBJ_STRING) {
         addReply(c,shared.wrongtypeerr);
         return C_ERR;
