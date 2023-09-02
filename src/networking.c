@@ -1411,8 +1411,8 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         exit(EXIT_FAILURE);
     } 
     value_size = packet_size;
-//    printf("=================\n\n\n\n");
-//    printf("Value size: %d bytes\n", value_size); // Display the current packet size
+    //printf("=================\n\n\n\n");
+    //printf("Value size: %d bytes\n", value_size); // Display the current packet size
 
     if (value_size > server.sdsmv_threshold){
         int off_key = VALUE_OFF_KEY;
@@ -1428,9 +1428,11 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         nread = read(fd,c->querybuf+qblen,value_offset);
         
         if (nread > 0) {
-//            c->querybuf[qblen+nread] = '\0';  // Add null terminator
+            c->querybuf[qblen+nread] = '\0';  // Add null terminator
         }
         
+        //printf("%s\n",c->querybuf);
+        //printf("nread = %d\n",nread);
         if (nread == 0) { 
             serverLog(LL_VERBOSE, "Client closed connection");
             freeClient(c);
