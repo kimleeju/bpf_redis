@@ -157,7 +157,7 @@ void setCommand(client *c) {
         setGenericCommand(c,flags,c->argv[1],c->argv[2],expire,unit,NULL,NULL);
     }
     else{
-        robj* nvm_val = createObject(OBJ_STRING, nvm_buf);
+        robj* nvm_val = createObject(OBJ_STRING, new_value);
         //robj* nvm_val = createObject(OBJ_STRING, sdsnewlennvm(nvm_buf,strlen(nvm_buf)));
         //nvm_val = tryObjectEncoding(nvm_val);
         setGenericCommand(c,flags,c->argv[1],nvm_val,expire,unit,NULL,NULL);

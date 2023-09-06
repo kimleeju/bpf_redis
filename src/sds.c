@@ -148,6 +148,69 @@ sds sdsmvtodram(const sds s)
     return s;
 }
 #ifdef USE_BPF
+
+sds sdslenbpf(void *init,size_t initlen) {
+    void *sh;
+    sds s;
+    char type = sdsReqType(initlen);
+    /* Empty strings are usually created in order to append. Use type 8
+     * since type 5 is not good at this. */
+    if (type == SDS_TYPE_5 && initlen == 0) type = SDS_TYPE_8;
+    int hdrlen = sdsHdrSize(type);
+    unsigned char *fp; /* flags pointer. */
+    sh = init;
+    //sh = s_malloc_nvm(hdrlen+initlen+1);
+    if (sh == NULL) return NULL;
+#ifdef FAST_SDSFREE
+//    serverAssert(((size_t)sh & 7) == 0);
+#endif
+    //if (!init)
+    //memset(sh, 0, hdrlen+initlen+1);
+    s = (char*)sh+hdrlen;
+    fp = ((unsigned char*)s)-1;
+    switch(type) {
+        case SDS_TYPE_5: {
+            *fp = type | (initlen << SDS_TYPE_BITS);
+            break;
+        }
+        case SDS_TYPE_8: {
+            SDS_HDR_VAR(8,s);
+            sh->len = initlen;
+            sh->alloc = initlen;
+            *fp = type;
+            break;
+        }
+        case SDS_TYPE_16: {
+            SDS_HDR_VAR(16,s);
+            sh->len = initlen;
+            sh->alloc = initlen;
+            *fp = type;
+            break;
+        }
+        case SDS_TYPE_32: {
+            SDS_HDR_VAR(32,s);
+            sh->len = initlen;
+            sh->alloc = initlen;
+            *fp = type;
+            break;
+        }
+        case SDS_TYPE_64: {
+            SDS_HDR_VAR(64,s);
+            sh->len = initlen;
+            sh->alloc = initlen;
+            *fp = type;
+            break;
+        }
+    }
+    s[initlen] = '\0';
+    //if (initlen && init)
+        //s_memcpy(s, init, initlen);
+    value_ptr+=hdrlen;
+    return s;
+}
+
+
+    
 sds sdsnewlenbpf(size_t initlen) {
     void *sh;
     sds s;

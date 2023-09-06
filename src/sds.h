@@ -274,6 +274,7 @@ sds sdsMakeRoomFor(sds s, size_t addlen);
 sds sdsMakeRoomForNvm(sds s, size_t addlen);
 
 sds sdsnewlenbpf(size_t initlen);
+sds sdslenbpf(void *init,size_t initlen);
 #endif
 void sdsIncrLen(sds s, int incr);
 sds sdsRemoveFreeSpace(sds s);

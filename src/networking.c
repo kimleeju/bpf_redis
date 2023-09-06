@@ -1401,6 +1401,7 @@ ssize_t read_all(int socket, char *buffer, size_t length) {
         }
 
         ssize_t bytes_read = read(socket, buffer + total_bytes_read, bytes_to_read);
+#if 1
         if (bytes_read <= 0) { 
             // 에러 발생 또는 연결 종료
             if (bytes_read == 0) { 
@@ -1409,7 +1410,9 @@ ssize_t read_all(int socket, char *buffer, size_t length) {
                 perror("read failed");
             }    
             return -1;
-        }    
+        
+        }
+#endif
         total_bytes_read += bytes_read;
     }
     return total_bytes_read; // 성공적으로 읽은 바이트 수 반환
@@ -1490,7 +1493,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     //int packet_size = atoi(ptr);
     value_size = packet_size;
     //printf("=================\n\n\n\n");
-//    printf("Value size: %d bytes\n", value_size); // Display the current packet size
+    //printf("Value size: %d bytes\n", value_size); // Display the current packet size
 
     if (value_size > server.sdsmv_threshold){
         int off_key = VALUE_OFF_KEY;
@@ -1501,45 +1504,38 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
             exit(EXIT_FAILURE);
         }   
         
-     //   printf("Value offset: %d bytes\n", value_offset); // Display the current packet size
+//        printf("Value offset: %d bytes\n", value_offset); // Display the current packet size
             
         c->querybuf = sdsMakeRoomFor(c->querybuf,value_offset);
         //printf("fd : %d\n",fd);
         //printf("querybuf : %s\n",c->querybuf);
         nread = read(fd,c->querybuf+qblen,value_offset);
         
-        //printf("1111111\n");
         if (nread > 0) {
             c->querybuf[qblen+nread] = '\0';  // Add null terminator
         }
         
-//        printf("querybuf : %s\n",c->querybuf);
         if (nread == 0) { 
             serverLog(LL_VERBOSE, "Client closed connection");
             freeClient(c);
             return;
         }
 //        set_blocking_mode(fd);
-
-        nvm_buf = sdsnewlenbpf(value_size);
-//        int nvm_readlen = read(fd,nvm_buf,value_size);
-        int nvm_readlen = read_all(fd,nvm_buf,value_size);
-            
-//        printf("nvm_readlen = %d\n",nvm_readlen);
-//                printf("nvm_buf : %s\n",nvm_buf);  
+        value_size+=2;//\r\n추가
+        new_value = sdslenbpf(nvm_buf+value_ptr,value_size);
+        //nvm_buf = sdsnewlenbpf(value_size);
+        //int nvm_readlen = read_all(fd,nvm_buf,value_size);
+        int nvm_readlen = read_all(fd,new_value,value_size);
+        //printf("nvm_readlen = %d\n",nvm_readlen);
+        //value_ptr += (nvm_readlen+3);
+        value_ptr += (nvm_readlen);
+    
+        //\r\n 제거 나중에 켜야할지도
 #if 0
-        if (value_size + nread < readlen - 2){
-            printf("tmp\n");
-            printf("tmp\n");
-        }
-        else{
-            printf("2222\n");
-            truncated_value = 1;
-        }
-#endif
         void *tmp = s_malloc(sizeof(char)*2); // \r\n제거 용도
         read(fd,tmp,2);
-//        printf("%s\n",c->querybuf);        
+#endif
+        //        printf("%s\n",c->querybuf);        
 //        printf("cnt : %d\n",++cnt);
     }
 #if 0
@@ -1569,8 +1565,6 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     }
 #endif
     else{ // set 중에 value < threshold 경우
-        printf("error error error error\n");
-        printf("%s\n",v_size);
         c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
         //printf("fd : %d\n",fd);
         nread = read(fd, c->querybuf+qblen, readlen);

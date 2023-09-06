@@ -2082,6 +2082,9 @@ void initServer(void) {
     server.initial_memory_usage = zmalloc_used_memory();
 #ifdef USE_NVM
     allocateNVMSpace();
+#ifdef USE_BPF
+    nvm_buf = nvm_malloc(5*1024*1024*1024);
+#endif
 #endif
 }
 
