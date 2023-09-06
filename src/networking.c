@@ -35,6 +35,9 @@
 #include <ctype.h>
 #include "sdsalloc.h"
 #include "sds.h"
+#ifdef USE_BPF
+#include <fcntl.h>
+#endif
 static void setProtocolError(const char *errstr, client *c, int pos);
 
 /* Return the size consumed from the allocator, for the specified SDS string,
@@ -1156,7 +1159,6 @@ int processMultibulkBuffer(client *c) {
     char *newline = NULL;
     int pos = 0, ok;
     long long ll;
-
     if (c->multibulklen == 0) {
         /* The client should have been reset */
         serverAssertWithInfo(c,NULL,c->argc == 0);
@@ -1184,27 +1186,15 @@ int processMultibulkBuffer(client *c) {
             setProtocolError("invalid mbulk count",c,pos);
             return C_ERR;
         }
-
         pos = (newline-c->querybuf)+2;
         if (ll <= 0) {
             sdsrange(c->querybuf,pos,-1);
             return C_OK;
         }
-
         c->multibulklen = ll;
 #ifdef USE_BPF
         if (value_size > server.sdsmv_threshold)
             (c->multibulklen)--;
-#if 0
-        if (value_size > server.sdsmv_threshold){
-            void* tmp1 = "*3\r\n$3\r\nset";
-            void* tmp2 = "*3\r\n$3\r\nSET";
-
-            if(!strncmp(c->querybuf, tmp1, strlen(tmp1)) || !strncmp(c->querybuf, tmp2, strlen(tmp2))){
-                (c->multibulklen)--;
-            }
-        }
-#endif
 #endif
         
         /* Setup argv array on client structure */
@@ -1305,7 +1295,11 @@ int processMultibulkBuffer(client *c) {
 
 #endif
     if (pos) sdsrange(c->querybuf,pos,-1);
-
+#if 0
+#ifdef USE_BPF
+    if (truncated_value == 1) return C_ERR;
+#endif
+#endif
     /* We're done when c->multibulk == 0 */
     if (c->multibulklen == 0) return C_OK;
 
@@ -1376,15 +1370,81 @@ void processInputBuffer(client *c) {
     }
     server.current_client = NULL;
 }
+#ifdef USE_BPF
+#if 0
+ssize_t read_all(int socket, char *buffer, size_t length) {
+    ssize_t total_bytes_read = 0;
+    while (total_bytes_read < length) {
+        ssize_t bytes_read = read(socket, buffer + total_bytes_read, length - total_bytes_read);
+        if (bytes_read <= 0) {
+            // 에러 발생 또는 연결 종료
+            if (bytes_read == 0) {
+                printf("Connection closed by peer.\n");
+            } else {
+                perror("read failed");
+            }
+            return -1;
+        }
+        total_bytes_read += bytes_read;
+    }
+    return total_bytes_read; // 성공적으로 읽은 바이트 수 반환
+}
+#endif
+//read 의 부분 실패를 대비 해서 나눠서 읽음
+ssize_t read_all(int socket, char *buffer, size_t length) {
+    
+    ssize_t total_bytes_read = 0;
+    while (total_bytes_read < length) {
+        ssize_t bytes_to_read = length - total_bytes_read;
+        if (bytes_to_read > PROTO_IOBUF_LEN) {
+            bytes_to_read = PROTO_IOBUF_LEN;
+        }
+
+        ssize_t bytes_read = read(socket, buffer + total_bytes_read, bytes_to_read);
+        if (bytes_read <= 0) { 
+            // 에러 발생 또는 연결 종료
+            if (bytes_read == 0) { 
+                printf("Connection closed by peer.");
+            } else {
+                perror("read failed");
+            }    
+            return -1;
+        }    
+        total_bytes_read += bytes_read;
+    }
+    return total_bytes_read; // 성공적으로 읽은 바이트 수 반환
+}
+
+
+
+void check_nonblocking_mode(int socket_fd) {
+    int flags = fcntl(socket_fd, F_GETFL, 0);
+    return;
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        return;
+    }
+
+    if (flags & O_NONBLOCK) {
+        printf("Socket is in non-blocking mode\n");
+    } else {
+        printf("Socket is in blocking mode\n");
+    }
+}
+
+
+
+
+#endif
 
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
-
+   //printf("fd : %d\n",fd);
     client *c = (client*) privdata;
     int nread, readlen;
     size_t qblen;
     UNUSED(el);
     UNUSED(mask);
-
+    
     readlen = PROTO_IOBUF_LEN;
     /* If this is a multi bulk request, and we are processing a bulk reply
      * that is large enough, try to maximize the probability that the query
@@ -1405,14 +1465,32 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
 
 #ifdef USE_BPF
     int size_key = SIZE_KEY; // We used 0 as the key in the BPF program
+    //int packet_size;
+    char v_size[10];
     int packet_size;
-    if (bpf_map_lookup_elem(map_fd, &size_key, &packet_size)) {
+    if (bpf_map_lookup_elem(map_fd, &size_key, &v_size)) {
         perror("Could not read BPF map");
         exit(EXIT_FAILURE);
     } 
+    if(v_size[0] <= '9' && v_size[0] >= '0'){
+        packet_size = atoi(strtok(v_size,"\r\n"));
+    }
+    else{
+        packet_size = 0;
+    }
+    //sleep(1);
+    
+    //이상하게 켜야만 동작함
+    //printf("before fd : %d\n",fd);
+    
+//    check_nonblocking_mode(fd);    
+    
+    set_blocking_mode(fd);
+    //printf("aaaaaaaa\n"); 
+    //int packet_size = atoi(ptr);
     value_size = packet_size;
     //printf("=================\n\n\n\n");
-    //printf("Value size: %d bytes\n", value_size); // Display the current packet size
+//    printf("Value size: %d bytes\n", value_size); // Display the current packet size
 
     if (value_size > server.sdsmv_threshold){
         int off_key = VALUE_OFF_KEY;
@@ -1422,41 +1500,88 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
             perror("Could not read BPF map");
             exit(EXIT_FAILURE);
         }   
-//        printf("Value offset: %d bytes\n", value_offset); // Display the current packet size
+        
+     //   printf("Value offset: %d bytes\n", value_offset); // Display the current packet size
             
         c->querybuf = sdsMakeRoomFor(c->querybuf,value_offset);
+        //printf("fd : %d\n",fd);
+        //printf("querybuf : %s\n",c->querybuf);
         nread = read(fd,c->querybuf+qblen,value_offset);
         
+        //printf("1111111\n");
         if (nread > 0) {
             c->querybuf[qblen+nread] = '\0';  // Add null terminator
         }
         
-        //printf("%s\n",c->querybuf);
-        //printf("nread = %d\n",nread);
+//        printf("querybuf : %s\n",c->querybuf);
         if (nread == 0) { 
             serverLog(LL_VERBOSE, "Client closed connection");
             freeClient(c);
             return;
         }
+//        set_blocking_mode(fd);
+
         nvm_buf = sdsnewlenbpf(value_size);
-        read(fd,nvm_buf,value_size);
+//        int nvm_readlen = read(fd,nvm_buf,value_size);
+        int nvm_readlen = read_all(fd,nvm_buf,value_size);
+            
+//        printf("nvm_readlen = %d\n",nvm_readlen);
+//                printf("nvm_buf : %s\n",nvm_buf);  
+#if 0
+        if (value_size + nread < readlen - 2){
+            printf("tmp\n");
+            printf("tmp\n");
+        }
+        else{
+            printf("2222\n");
+            truncated_value = 1;
+        }
+#endif
         void *tmp = s_malloc(sizeof(char)*2); // \r\n제거 용도
         read(fd,tmp,2);
-        
+//        printf("%s\n",c->querybuf);        
+//        printf("cnt : %d\n",++cnt);
     }
-    else{
+#if 0
+    else if(value_size ==0){ // value 가 나눠서 올떄 처리 하기 위해 사용
+        int off_key = VALUE_OFF_KEY;
+        int value_offset;
+
+        if (bpf_map_lookup_elem(map_fd, &off_key, &value_offset)) {
+            perror("Could not read BPF map");
+            exit(EXIT_FAILURE);
+        }
+        if (value_offset == 0){
+            nvm_buf = sdsnewlenbpf(readlen);
+            int nvm_read = read(fd,nvm_buf,readlen);
+            nread = 1;
+            printf("aaaaaaa\n");
+            if (nvm_read < readlen - 2){
+                void *tmp = s_malloc(sizeof(char)*2); // \r\n제거 용도
+                read(fd,tmp,2);
+                truncated_value = 0;
+            }
+        }
+        else{ // set 이외의 command
+            c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
+            nread = read(fd, c->querybuf+qblen, readlen);
+        }
+    }
+#endif
+    else{ // set 중에 value < threshold 경우
+        printf("error error error error\n");
+        printf("%s\n",v_size);
         c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
+        //printf("fd : %d\n",fd);
         nread = read(fd, c->querybuf+qblen, readlen);
     }
+
+
 #else
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
     nread = read(fd, c->querybuf+qblen, readlen);
 #endif
-
-#ifndef USE_BPF
-    c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
-    nread = read(fd, c->querybuf+qblen, readlen);
-#endif
+    //printf("c->query : %s\n",c->querybuf+qblen);
     if (nread == -1) {
         if (errno == EAGAIN) {
             return;

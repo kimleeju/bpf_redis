@@ -513,6 +513,37 @@ int load_ebpf_program(struct bpf_object **obj,const char *file) {
     return first_prog_fd;
 }
 
+void set_blocking_mode(int socket_fd) {
+    int flags = fcntl(socket_fd, F_GETFL, 0);
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        return;
+    }
+
+    flags &= ~O_NONBLOCK; // Clear the O_NONBLOCK flag
+
+    if (fcntl(socket_fd, F_SETFL, flags) == -1) {
+        perror("fcntl F_SETFL");
+        return;
+    }
+}
+
+void set_nonblocking_mode(int socket_fd) {
+    int flags = fcntl(socket_fd, F_GETFL, 0);
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        return;
+    }
+
+    flags |= O_NONBLOCK; // Set the O_NONBLOCK flag
+
+    if (fcntl(socket_fd, F_SETFL, flags) == -1) {
+        perror("fcntl F_SETFL");
+        return;
+    }
+}
+
+
 #endif
 
 static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backlog)
@@ -562,6 +593,8 @@ static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backl
             perror("setsockopt");
             exit(1);
         }
+//        set_blocking_mode(s);
+//        set_nonblocking_mode(s);
 #endif
         if (af == AF_INET6 && anetV6Only(err,s) == ANET_ERR) goto error;
         if (anetSetReuseAddr(err,s) == ANET_ERR) goto error;

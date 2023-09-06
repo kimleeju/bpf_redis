@@ -161,6 +161,7 @@ robj *lookupKeyWriteOrReply(client *c, robj *key, robj *reply) {
 void dbAdd(redisDb *db, robj *key, robj *val) {
 #ifdef USE_NVM
     sds copy = sdsdupnvm(key->ptr);
+    //sds copy = sdsdup(key->ptr);
 #else
     sds copy = sdsdup(key->ptr);
 #endif

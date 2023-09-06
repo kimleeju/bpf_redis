@@ -83,7 +83,9 @@ struct bpf_object *obj;
 int prog_fd, map_fd;
 struct bpf_map *map;
 size_t value_size;
+//bool truncated_value;
 char* nvm_buf;
+int cnt;
 #define SIZE_KEY 0
 #define VALUE_OFF_KEY 1
 

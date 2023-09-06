@@ -163,7 +163,7 @@ sds sdsnewlenbpf(size_t initlen) {
     serverAssert(((size_t)sh & 7) == 0);
 #endif
     //if (!init)
-    //    memset(sh, 0, hdrlen+initlen+1);
+    //memset(sh, 0, hdrlen+initlen+1);
     s = (char*)sh+hdrlen;
     fp = ((unsigned char*)s)-1;
     switch(type) {
