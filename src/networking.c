@@ -1392,14 +1392,13 @@ ssize_t read_all(int socket, char *buffer, size_t length) {
 #endif
 //read 의 부분 실패를 대비 해서 나눠서 읽음
 ssize_t read_all(int socket, char *buffer, size_t length) {
-    
     ssize_t total_bytes_read = 0;
     while (total_bytes_read < length) {
         ssize_t bytes_to_read = length - total_bytes_read;
         if (bytes_to_read > PROTO_IOBUF_LEN) {
             bytes_to_read = PROTO_IOBUF_LEN;
         }
-
+       // printf("before before before before\n");
         ssize_t bytes_read = read(socket, buffer + total_bytes_read, bytes_to_read);
 #if 1
         if (bytes_read <= 0) { 
@@ -1414,6 +1413,8 @@ ssize_t read_all(int socket, char *buffer, size_t length) {
         }
 #endif
         total_bytes_read += bytes_read;
+//        printf("total_bytes_read = %d\n",total_bytes_read);
+//        printf("length = %d\n",length);
     }
     return total_bytes_read; // 성공적으로 읽은 바이트 수 반환
 }
@@ -1510,7 +1511,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         //printf("fd : %d\n",fd);
         //printf("querybuf : %s\n",c->querybuf);
         nread = read(fd,c->querybuf+qblen,value_offset);
-        
+//        printf("nread : %d\n",nread);
         if (nread > 0) {
             c->querybuf[qblen+nread] = '\0';  // Add null terminator
         }
@@ -1526,7 +1527,6 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         //nvm_buf = sdsnewlenbpf(value_size);
         //int nvm_readlen = read_all(fd,nvm_buf,value_size);
         int nvm_readlen = read_all(fd,new_value,value_size);
-        //printf("nvm_readlen = %d\n",nvm_readlen);
         //value_ptr += (nvm_readlen+3);
         value_ptr += (nvm_readlen);
     
@@ -1575,7 +1575,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
     nread = read(fd, c->querybuf+qblen, readlen);
 #endif
-    //printf("c->query : %s\n",c->querybuf+qblen);
+//    printf("c->query : %s\n",c->querybuf+qblen);
     if (nread == -1) {
         if (errno == EAGAIN) {
             return;

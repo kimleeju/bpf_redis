@@ -514,8 +514,8 @@ int load_ebpf_program(struct bpf_object **obj,const char *file) {
 }
 
 void set_blocking_mode(int socket_fd) {
-//    int flags = fcntl(socket_fd, F_GETFL, 0);
 #if 0
+    int flags = fcntl(socket_fd, F_GETFL, 0);
     if (flags == -1) {
         perror("fcntl F_GETFL");
         return;
