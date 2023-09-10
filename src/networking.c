@@ -1409,7 +1409,7 @@ ssize_t read_all(int socket, char *buffer, size_t length) {
             } else {
                 perror("read failed");
             }    
-            return -1;
+//            return -1;
         
         }
 #endif
