@@ -58,7 +58,7 @@
 #include <bpf/libbpf.h>
 #include <linux/bpf.h>
 #include <bpf/bpf.h>
-#define MAP_NAME "packet_size_map"
+//#define MAP_NAME "packet_size_map"
 
 
 #define MAX_PACKET_SIZE 64
@@ -514,7 +514,7 @@ int load_ebpf_program(struct bpf_object **obj,const char *file) {
 }
 
 void set_blocking_mode(int socket_fd) {
-#if 0
+#if 1
     int flags = fcntl(socket_fd, F_GETFL, 0);
     if (flags == -1) {
         perror("fcntl F_GETFL");
@@ -569,7 +569,7 @@ static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backl
         if ((s = socket(p->ai_family,p->ai_socktype,p->ai_protocol)) == -1)
             continue;
 #ifdef USE_BPF
-        file = "packet_size_kern.o";
+        file = "/home/ljkim/bpf/bpf_redis/bpf_redis/packet_size_kern.o";
         obj = NULL;
         
         prog_fd = load_ebpf_program(&obj,file);
@@ -579,18 +579,38 @@ static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backl
             close(s);
             return 1;
         }
+        
+        char MAP_NAME[MAX_PORTS][30] = {"packet_map_template0","packet_map_template1","packet_map_template2","packet_map_template3", "packet_map_template4","packet_map_template5","packet_map_template6","packet_map_template7", "packet_map_template8","packet_map_template9"};
+        
+        
+        for(int i = 0 ; i < MAX_PORTS; i++){
+            map = bpf_object__find_map_by_name(obj, MAP_NAME[i]);
+            if (!map) {
+                printf("Could not find BPF map\n");
+                return 1;
+            }
 
-        map = bpf_object__find_map_by_name(obj, MAP_NAME);
-        if (!map) {
-            printf("Could not find BPF map\n");
+            map_fd[i] = bpf_map__fd(map);
+            if (map_fd[i] < 0) {
+                perror("Could not get map file descriptor");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        struct bpf_map *port_info_map = bpf_object__find_map_by_name(obj, INFO_NAME);
+        if (!port_info_map) {
+            printf("Could not find BPF map 'port_info'\n");
             return 1;
         }
 
-        map_fd = bpf_map__fd(map);
-        if (map_fd < 0) {
-            perror("Could not get map file descriptor");
+        port_info_fd = bpf_map__fd(port_info_map);
+        if (port_info_fd < 0) {
+            perror("Could not get 'port_info' map file descriptor");
             exit(EXIT_FAILURE);
         }
+
+
+
         if (setsockopt(s, SOL_SOCKET, SO_ATTACH_BPF, &prog_fd, sizeof(prog_fd)) < 0) {
             perror("setsockopt");
             exit(1);
@@ -648,6 +668,7 @@ static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *l
     int fd;
     while(1) {
         fd = accept(s,sa,len);
+
         if (fd == -1) {
             if (errno == EINTR)
                 continue;
@@ -658,6 +679,27 @@ static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *l
         }
         break;
     }
+#ifdef USE_BPF
+    usleep(1000);
+    struct sockaddr_in *sa_in = (struct sockaddr_in *)sa;
+    __u64 dst_port = ntohs(sa_in->sin_port);
+    int dst_idx;
+    //printf("fd : %d, dst_port : %d\n",port_info_fd,dst_port);
+    if(!port_info[dst_port]){
+        if (bpf_map_lookup_elem(port_info_fd, &dst_port, &dst_idx) != 0) {
+            perror("Could not read 'port_info' BPF map");
+        }
+        else {
+      //      printf("new_value for port %lld: %d\n", dst_port, dst_idx);
+        }
+    }
+    else{
+        dst_idx = port_info[dst_port];
+    }
+    port_info[fd] = dst_idx;
+    //map_put(&src_port, fd, dst_idx); 
+    //printf("dst_idx : %d\n",dst_idx);
+#endif
     return fd;
 }
 

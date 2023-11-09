@@ -1440,15 +1440,9 @@ void check_nonblocking_mode(int socket_fd) {
 
 
 #endif
-#ifdef USE_BPF
-struct packet_info {
-    unsigned long long offset;
-    char size[10];
-};
-#endif
-
 
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
+   //printf("fd : %d\n",fd);
     client *c = (client*) privdata;
     int nread, readlen;
     size_t qblen;
@@ -1474,9 +1468,6 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
 
 #ifdef USE_BPF
-    struct packet_info pinfo;
-    int packet_size;
-#if 0  
     int size_key = SIZE_KEY; // We used 0 as the key in the BPF program
     //int packet_size;
     char v_size[10];
@@ -1491,29 +1482,8 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     else{
         packet_size = 0;
     }
-#endif
-    
-    if (bpf_map_lookup_and_delete_elem(map_fd[port_info[fd]], NULL, &pinfo) != 0) {
-    //if (bpf_map_lookup_elem(map_fd, &packet_id, &pinfo)) {
-        perror("Could not read BPF map");
-                //exit(EXIT_FAILURE);
-    }
-
-    if(pinfo.size[0] <= '9' && pinfo.size[0] >= '0')
-        packet_size = atoi(strtok(pinfo.size,"\r\n"));    
-    else
-        packet_size = 0;
-//    printf("packet_id : %d\n",packet_id);
-//    packet_id++;
-
-//    if (packet_id >= 10000) {
-//        packet_id = 0;
-//    }
-
-
     //sleep(1);
-//    printf("pinfo.offset : %d\n",pinfo.offset);
-//    printf("size : %d\n",packet_size);
+    
     //이상하게 켜야만 동작함
     //printf("before fd : %d\n",fd);
     
@@ -1525,25 +1495,23 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     value_size = packet_size;
     //printf("=================\n\n\n\n");
     //printf("Value size: %d bytes\n", value_size); // Display the current packet size
-    //printf("offset : %d\n",pinfo.offset);
+
     if (value_size > server.sdsmv_threshold){
-//        int off_key = VALUE_OFF_KEY;
+        int off_key = VALUE_OFF_KEY;
         int value_offset;
-#if 0
+
         if (bpf_map_lookup_elem(map_fd, &off_key, &value_offset)) {
             perror("Could not read BPF map");
             exit(EXIT_FAILURE);
         }   
-#endif
-        value_offset = pinfo.offset;
+        
 //        printf("Value offset: %d bytes\n", value_offset); // Display the current packet size
             
         c->querybuf = sdsMakeRoomFor(c->querybuf,value_offset);
         //printf("fd : %d\n",fd);
         //printf("querybuf : %s\n",c->querybuf);
         nread = read(fd,c->querybuf+qblen,value_offset);
-//        printf("querybuf : %s\n",c->querybuf);
-        //        printf("nread : %d\n",nread);
+//        printf("nread : %d\n",nread);
         if (nread > 0) {
             c->querybuf[qblen+nread] = '\0';  // Add null terminator
         }

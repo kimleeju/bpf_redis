@@ -78,14 +78,9 @@ int anetFormatPeer(int fd, char *fmt, size_t fmt_len);
 int anetFormatSock(int fd, char *fmt, size_t fmt_len);
 
 #ifdef USE_BPF
-#define MAX_PORTS 10
-#define INFO_NAME "port_info"
-#define NUM_PORTS 65535
 const char *file;
 struct bpf_object *obj;
-int prog_fd, map_fd[MAX_PORTS];
-int port_info_fd;
-int port_info[NUM_PORTS];
+int prog_fd, map_fd;
 struct bpf_map *map;
 size_t value_size;
 //bool truncated_value;
@@ -93,9 +88,6 @@ char* nvm_buf;
 char* new_value;
 size_t value_ptr;
 int cnt;
-//int packet_id;
-#define QUEUE_MAX_ENTRIES 10000
-#define MAX_THREADS 4
 #define SIZE_KEY 0
 #define VALUE_OFF_KEY 1
 

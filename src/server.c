@@ -1901,7 +1901,9 @@ void * redisduplicatenvmaddr(void *addr) {
 
 void initServer(void) {
     int j;
-
+#ifdef USE_BPF
+    memset(port_info,0,NUM_PORTS);
+#endif
     signal(SIGHUP, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
     setupSignalHandlers();
